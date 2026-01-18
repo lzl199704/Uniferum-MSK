@@ -9,8 +9,6 @@ from torch.utils.data import Dataset
 from transformers import PreTrainedTokenizer
 
 from data_utils.anatomical_map import anatomical_map
-from img_utils.zst_utils import load_zst16
-from img_utils.img_process import process_image
 import time
 
 def patchify_3d(volume, patch_size): ###[256,256,32] -> [32,32,4] -> [8,8,1]
@@ -111,8 +109,6 @@ class VQAMaskDataset(Dataset):
     def read_img(self, img_file):
         if img_file.endswith((".nii", ".nii.gz")):
             img = nib.load(img_file).get_fdata(dtype=np.float32)
-        elif img_file.endswith(".bin"):
-            img = load_zst16(img_file).astype("float32")
         elif img_file.endswith(".npz"):
             img = np.load(img_file)['volume'].astype(np.float32)
             return img
@@ -121,20 +117,6 @@ class VQAMaskDataset(Dataset):
                 f"Unsupported file type: {img_file}. Only .nii, .nii.gz, and .bin are supported."
             )
         img = img / 2000.0 + 0.5
-        return img
-
-    def get_img(self, img_file: str,seg_file: str, transform: None):
-        img = self.read_img(img_file)
-        
-        
-        img = process_image(img,None, False)
-        
-        img = np.float16(img) / 255.0 
-        
-        if transform is not None:
-            img = np.expand_dims(img, 0)
-            return transform(img)
-        img = torch.tensor(img).unsqueeze(0)
         return img
 
     def get_img_mask(self, img_file: str, seg_file: str, transform: None):

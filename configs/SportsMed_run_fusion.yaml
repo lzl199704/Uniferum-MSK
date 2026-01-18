@@ -3,7 +3,7 @@ hf_TrainingArguments:
   learning_rate: 5.e-5
   logging_steps: 500
   max_steps: 25000
-  output_dir: "/raid/data/uniferum/uniferum-main/vision_models/SportsMed_ERMI_Knee_run1_1226_latefusion_COR_V1/"
+  output_dir: "XXX"
   per_device_train_batch_size: 8
   remove_unused_columns: false
   save_steps: 5000
@@ -13,7 +13,7 @@ hf_TrainingArguments:
   evaluation_strategy: steps
   eval_steps: 500
   per_device_eval_batch_size: 1
-input_file: "/raid/data/uniferum/uniferum-main/sportsmed_ERMI_knee_trainval_1226_PD+PDFS_2channel_COR.parquet"
+input_file: "XXX.parquet"
 normalization_strategy: "independent"
 llm_args:
   bert_encoder_layers: 4
@@ -101,3 +101,4 @@ train_transform_imgonly:
     name: RandBiasField
     prob: 0.2
   
+

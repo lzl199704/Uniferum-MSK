@@ -1,0 +1,103 @@
+hf_TrainingArguments:
+  dataloader_num_workers: 64
+  learning_rate: 5.e-5
+  logging_steps: 500
+  max_steps: 25000
+  output_dir: "/raid/data/uniferum/uniferum-main/vision_models/SportsMed_ERMI_Knee_run1_1226_latefusion_COR_V1/"
+  per_device_train_batch_size: 8
+  remove_unused_columns: false
+  save_steps: 5000
+  weight_decay: 0.01
+  lr_scheduler_type: cosine
+  warmup_steps: 2000
+  evaluation_strategy: steps
+  eval_steps: 500
+  per_device_eval_batch_size: 1
+input_file: "/raid/data/uniferum/uniferum-main/sportsmed_ERMI_knee_trainval_1226_PD+PDFS_2channel_COR.parquet"
+normalization_strategy: "independent"
+llm_args:
+  bert_encoder_layers: 4
+  model_class: BertModel
+  model_id: Simonlee711/Clinical_ModernBERT
+vision_args:
+  feature_dim: 1280
+  llm_emb_dim: 768
+  model_args:
+    global_pool: ''
+    in_chans: 1
+    model_name: tf_efficientnet_b0.in1k
+    num_classes: 0
+    pretrained: true
+  model_class: EfficientNetViT
+  nhead: 8
+  seqlen: 130
+fusion_args:
+  fusion_type: "concat"  # Options: "attention", "concat", "weighted_sum", "gated_fusion"
+  feature_dim: 768
+  num_heads: 8
+mixer_args:
+  d_model: 768
+  name: latent_mem
+  nhead: 8
+  num_layers: 1
+  vision_as_mem: false
+lora_args:
+  r: 8
+  lora_alpha: 16
+  lora_dropout: 0.1
+  bias: "none"
+  task_type: "FEATURE_EXTRACTION"
+predict_transform:
+  - name: Resize
+    spatial_size:
+      - 256
+      - 256
+      - 32
+train_transform:
+  - name: Resize
+    spatial_size:
+      - 256
+      - 256
+      - 32
+  - name: RandRotate
+    prob: 0.5
+    range_x: 0.261799166
+    range_y: 0.261799166
+    range_z: 0.08
+  - name: RandZoom
+    max_zoom: 1.1
+    min_zoom: 0.9
+    prob: 0.5
+  - name: RandFlip
+    prob: 0.5
+    spatial_axis: 0
+train_transform_imgonly:
+  - name: RandGaussianNoise
+    std: 0.01
+    prob: 0.5
+  - name: RandShiftIntensity
+    offsets: 0.01
+    prob: 0.5
+  - gamma:
+    - 0.7
+    - 1.5
+    name: RandAdjustContrast
+    prob: 0.3
+  - name: RandGaussianSmooth
+    prob: 0.3
+    sigma_x:
+    - 0.5
+    - 1.5
+    sigma_y:
+    - 0.5
+    - 1.5
+    sigma_z:
+    - 0.2
+    - 0.7
+  - coeff_range:
+    - 0.0
+    - 0.3
+    degree: 3
+    name: RandBiasField
+    prob: 0.2
+  

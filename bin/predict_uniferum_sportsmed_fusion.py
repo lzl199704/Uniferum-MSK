@@ -11,8 +11,8 @@ from torch.utils.data import DataLoader
 from transformers import AutoTokenizer
 
 from bin.utils import create_transform, load_yaml
-from data_utils.vqa_dataset_sportsmed_knee_latefusion import VQABinaryDataCollator, VQAMaskDatasetLateFusion
-from models.multimodal_models_latefusion import UniferumLateFusion
+from data_utils.vqa_dataset_sportsmed_fusion import VQABinaryDataCollator, VQAMaskDatasetLateFusion
+from models.multimodal_models_fusion import UniferumLateFusion
 from models.utils import load_safetensors
 from tqdm import tqdm
 mp.set_start_method("spawn", force=True)

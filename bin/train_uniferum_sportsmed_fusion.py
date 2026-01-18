@@ -10,8 +10,8 @@ from bin.utils import (
     load_yaml,
     save_yaml,
 )
-from data_utils.vqa_dataset_sportsmed_knee_latefusion import VQABinaryDataCollator, VQAMaskDatasetLateFusion
-from models.multimodal_models_latefusion import UniferumLateFusion
+from data_utils.vqa_dataset_sportsmed_fusion import VQABinaryDataCollator, VQAMaskDatasetLateFusion
+from models.multimodal_models_fusion import UniferumLateFusion
 import torch
 
 def create_datasets(

@@ -7,10 +7,6 @@ import torch
 from skimage.measure import block_reduce
 from torch.utils.data import Dataset
 from transformers import PreTrainedTokenizer
-
-from data_utils.anatomical_map import anatomical_map
-from img_utils.zst_utils import load_zst16
-from img_utils.img_process import process_image
 import time
 
 def patchify_3d(volume, patch_size):
@@ -103,7 +99,6 @@ class VQAMaskDatasetLateFusion(Dataset):
         self.tokenizer = tokenizer
         self.transform = transform
         self.transform_imgonly = transform_imgonly
-        self.tsseg_map = anatomical_map
         self.mask_pool_size = (8, 8, 8)
         self.patch_size = (4, 4, 4)
         self.normalization_strategy = normalization_strategy
@@ -114,9 +109,6 @@ class VQAMaskDatasetLateFusion(Dataset):
     def read_img(self, img_file):
         if img_file.endswith((".nii", ".nii.gz")):
             img = nib.load(img_file).get_fdata(dtype=np.float32)
-            return img
-        elif img_file.endswith(".bin"):
-            img = load_zst16(img_file).astype("float32")
             return img
         elif img_file.endswith(".npz"):
             img = np.load(img_file)['volume'].astype(np.float32)
@@ -210,107 +202,31 @@ class VQAMaskDatasetLateFusion(Dataset):
         img_pdfs = torch.tensor(img_pdfs).unsqueeze(0)
         return [img_pd, img_pdfs]  # Return as list for late fusion
 
-    def get_dual_img_mask(self, img_file_pd: str, img_file_pdfs: str, seg_file: str, transform=None, seg_indices=None):
-        """Load and process both PD and PDFS sequences with segmentation"""
-        # Load PD sequence
-        img_pd = self.read_img(img_file_pd)
-        # Load PDFS sequence  
-        img_pdfs = self.read_img(img_file_pdfs)
-        
-        # Load segmentation (use same segmentation for both sequences)
-        if seg_file.endswith((".nii", ".nii.gz")):
-            seg = nib.load(seg_file).get_fdata(dtype=np.float32).astype("int")
-        elif seg_file.endswith(".npz"):
-            seg = np.load(seg_file)['arr'].astype("uint8")
-        
-        # Process images and segmentation
-        img_pd, seg, coordinate_list = process_image(img_pd, seg, True)
-        img_pdfs, _, _ = process_image(img_pdfs, seg, True)  # Use same seg processing
-        
-        # Apply improved normalization AFTER processing
-        img_pd_norm = img_pd / 255.0
-        img_pdfs_norm = img_pdfs / 255.0
-        img_pd_norm, img_pdfs_norm = self.normalize_dual_images(
-            img_pd_norm, img_pdfs_norm, self.normalization_strategy
-        )
-        
-        img_pd_norm = np.float16(img_pd_norm)
-        img_pdfs_norm = np.float16(img_pdfs_norm)
-        
-        mask = np.isin(seg, seg_indices).astype("float16")
-
-        if transform is not None:
-            img_pd_mask = np.stack([img_pd_norm, mask], 0)
-            img_pdfs_mask = np.stack([img_pdfs_norm, mask], 0)
-            img_pd_mask = transform(img_pd_mask)
-            img_pdfs_mask = transform(img_pdfs_mask)
-            return [img_pd_mask[[0]], img_pdfs_mask[[0]]], img_pd_mask[[1]]  # Return dual images and single mask
-
-        img_pd_norm = torch.tensor(img_pd_norm).unsqueeze(0)  # [1, 256, 256, 128]
-        img_pdfs_norm = torch.tensor(img_pdfs_norm).unsqueeze(0)  # [1, 256, 256, 128]
-        mask = torch.tensor(mask).unsqueeze(0)  # [1, 256, 256, 128]
-        return [img_pd_norm, img_pdfs_norm], mask
-
-    def get_seg_info(self, img_file: str, text: str):
-        seg_tag = text.replace('Segment ','')
-        seg_tag = seg_tag.replace(' in the image.','')
-        # TODO: simplify
-        if seg_tag == "Nodule":
-            text = "Segment pulmonary nodules in the image."
-            seg_indices = [1]
-        else:
-            seg_indices = self.tsseg_map[seg_tag]
-        return seg_indices, text
-
     def __getitem__(self, idx: int):
         text = self.text_list[idx]
 
         # TODO: simplify
-        if text.startswith("Segment"):
-            if self.img_files is not None:
-                img_file = self.img_files[idx]
-                img_file_pdfs = self.img_files_pdfs[idx]
-                seg_file = self.seg_files[idx]
-                seg_indices, text = self.get_seg_info(img_file, text)
-                img, mask = self.get_dual_img_mask(
-                    img_file,
-                    img_file_pdfs,
-                    seg_file,
-                    transform=self.transform,
-                    seg_indices=seg_indices,
-                )
-                if self.transform_imgonly is not None:
-                    img = [self.transform_imgonly(img[0]), self.transform_imgonly(img[1])]
 
-            if self.labels is not None:
-                mask_label = block_reduce(
-                    mask[0].numpy(), block_size=self.mask_pool_size, func=np.max
-                )
-                patchify_label = patchify_3d(
-                    mask_label, self.patch_size
-                )  # (nDxnHxnW, pDxpHxpW)
-                task_mask = 0
-        else:
-            if self.img_files is not None :
-                # Use dual-channel input for PD and PDFS sequences
-                img = self.get_dual_img(
-                    self.img_files[idx], 
-                    self.img_files_pdfs[idx], 
-                    transform=self.transform
-                )
-                if self.transform_imgonly is not None:
-                    img = [self.transform_imgonly(img[0]), self.transform_imgonly(img[1])]
-            if self.labels is not None:
-                # Use the first image (PD) to determine dimensions for segmentation labels
-                if isinstance(img, list):
-                    _, H, W, D = img[0].shape
-                else:
-                    _, H, W, D = img.shape
-                m1 = np.prod(self.mask_pool_size)
-                m2 = np.prod(self.patch_size)
-                label_size = H * D * W // m1 // m2
-                patchify_label = np.zeros((label_size , m2), dtype="float16")
-                task_mask = 1
+        if self.img_files is not None :
+            # Use dual-channel input for PD and PDFS sequences
+            img = self.get_dual_img(
+                self.img_files[idx], 
+                self.img_files_pdfs[idx], 
+                transform=self.transform
+            )
+            if self.transform_imgonly is not None:
+                img = [self.transform_imgonly(img[0]), self.transform_imgonly(img[1])]
+        if self.labels is not None:
+            # Use the first image (PD) to determine dimensions for segmentation labels
+            if isinstance(img, list):
+                _, H, W, D = img[0].shape
+            else:
+                _, H, W, D = img.shape
+            m1 = np.prod(self.mask_pool_size)
+            m2 = np.prod(self.patch_size)
+            label_size = H * D * W // m1 // m2
+            patchify_label = np.zeros((label_size , m2), dtype="float16")
+            task_mask = 1
         content = {"text": text, "image": img}
         if self.labels is not None:
             content["label"] = self.labels[idx]
